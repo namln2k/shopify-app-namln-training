@@ -12,81 +12,124 @@ import {
   Page,
   VerticalStack,
 } from "@shopify/polaris";
-
 import { useEffect, useState } from "react";
 import { authenticate } from "../shopify.server";
 
 export const loader = async (data) => {
-  const { request, params } = data;
+  const { request } = data;
   const { admin } = await authenticate.admin(request);
 
-  console.log("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^");
-  console.log(request, request.getRequestURL());
+  const urlObj = new URL(request.url);
+  const startCursor = urlObj.searchParams.get("startCursor");
+  const endCursor = urlObj.searchParams.get("endCursor");
 
-  const lastCursor = request.parsedURL.searchParams.lastCursor;
+  let response;
 
-  const response = await admin.graphql(
-    `query ($numProducts: Int!, $cursor: ${lastCursor}) {
-      products(first: $numProducts, after: ${lastCursor}) {
-        nodes {
-          id
-          title
-          description
+  if (startCursor) {
+    response = await admin.graphql(
+      `query ($numProducts: Int!, $cursor: String) {
+        products(last: $numProducts, before: $cursor) {
+          nodes {
+            id
+            title
+            description
+          }
+          pageInfo {
+            startCursor
+            hasPreviousPage
+            hasNextPage
+            endCursor
+          }
         }
-        pageInfo {
-          hasNextPage
-          endCursor
-        }
+      }`,
+      {
+        variables: {
+          numProducts: 3,
+          cursor: startCursor,
+        },
       }
-    }`,
-    {
-      variables: {
-        numProducts: 5,
-        cursor: null,
-      },
-    }
-  );
+    );
+  } else {
+    response = await admin.graphql(
+      `query ($numProducts: Int!, $cursor: String) {
+        products(first: $numProducts, after: $cursor) {
+          nodes {
+            id
+            title
+            description
+          }
+          pageInfo {
+            startCursor
+            hasPreviousPage
+            hasNextPage
+            endCursor
+          }
+        }
+      }`,
+      {
+        variables: {
+          numProducts: 3,
+          cursor: endCursor || null,
+        },
+      }
+    );
+  }
 
-  const responseJson = await response.json();
+  if (response) {
+    const responseJson = await response.json();
 
-  return responseJson.data;
+    return responseJson.data;
+  } else {
+    return null;
+  }
 };
 
 export default function Products() {
-  const [currentPage, setCurrentPage] = useState(0);
-  const [buttonPrevDisabled, setButtonPrevDisabled] = useState(true);
-  const [buttonNextDisabled, setButtonNextDisabled] = useState(false);
-  const [lastCursor, setLastCursor] = useState();
+  const [hasPreviousPage, setHasPreviousPage] = useState(false);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [startCursor, setStartCursor] = useState(null);
+  const [endCursor, setEndCursor] = useState(null);
 
-  let [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const revalidator = useRevalidator();
 
   const loaderData = useLoaderData();
-  const products = loaderData.products.nodes;
 
-  const toNextPage = () => {
-    setSearchParams(new URLSearchParams({ lastCursor: String(lastCursor) }));
+  const products = loaderData?.products.nodes;
+  const pageInfo = loaderData?.products.pageInfo;
+
+  useEffect(() => {
+    setEndCursor(pageInfo?.endCursor);
+    setStartCursor(pageInfo?.startCursor);
+
+    setHasNextPage(!!pageInfo?.hasNextPage);
+    setHasPreviousPage(!!pageInfo?.hasPreviousPage);
+  }, [loaderData]);
+
+  const handleButtonPrevClicked = () => {
+    setSearchParams(new URLSearchParams({ startCursor: String(startCursor) }));
 
     revalidator.revalidate();
   };
 
-  const tableRows = products.map((product) => {
-    product.id = product.id.replace("gid://shopify/Product/", "");
+  const handleButtonNextClicked = () => {
+    setSearchParams(new URLSearchParams({ endCursor: String(endCursor) }));
 
-    return Object.values(product);
-  });
+    revalidator.revalidate();
+  };
 
-  useEffect(() => {
-    if (currentPage != 0) {
-      setButtonPrevDisabled(false);
-    }
-  }, [currentPage]);
+  const tableRows =
+    products?.map((product) => {
+      product.id = product.id.replace("gid://shopify/Product/", "");
 
-  const revalidator = useRevalidator();
+      return Object.values(product);
+    }) || [];
 
   return (
     <Page>
       <Outlet />
-      <ui-title-bar title="Edit product"></ui-title-bar>
+      <ui-title-bar title="All products"></ui-title-bar>
       <VerticalStack gap="5">
         <Layout>
           <Layout.Section>
@@ -100,8 +143,20 @@ export default function Products() {
                     hoverable
                   />
                   <div className="w-full flex justify-end gap-6 mr-0 pr-12 pt-8 border-t-2 border-gray-500">
-                    <Button disabled={buttonPrevDisabled}>Prev</Button>
-                    <Button disabled={buttonNextDisabled} onClick={toNextPage}>
+                    <Button
+                      disabled={!hasPreviousPage}
+                      onClick={() => {
+                        handleButtonPrevClicked();
+                      }}
+                    >
+                      Prev
+                    </Button>
+                    <Button
+                      disabled={!hasNextPage}
+                      onClick={() => {
+                        handleButtonNextClicked();
+                      }}
+                    >
                       Next
                     </Button>
                   </div>
