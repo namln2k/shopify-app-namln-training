@@ -1,6 +1,7 @@
 import {
-  Outlet,
+  Link,
   useLoaderData,
+  useNavigate,
   useRevalidator,
   useSearchParams,
 } from "@remix-run/react";
@@ -14,6 +15,7 @@ import {
 } from "@shopify/polaris";
 import { useEffect, useState } from "react";
 import { authenticate } from "../shopify.server";
+import { EditMajor } from "@shopify/polaris-icons";
 
 export const loader = async (data) => {
   const { request } = data;
@@ -76,15 +78,17 @@ export const loader = async (data) => {
   }
 
   if (response) {
-    const responseJson = await response.json();
+    const responseData = await response.json();
 
-    return responseJson.data;
+    const { products: productsData } = responseData.data;
+
+    return productsData;
   } else {
     return null;
   }
 };
 
-export default function Products() {
+export default function ProductsAll() {
   const [hasPreviousPage, setHasPreviousPage] = useState(false);
   const [hasNextPage, setHasNextPage] = useState(false);
   const [startCursor, setStartCursor] = useState(null);
@@ -94,10 +98,12 @@ export default function Products() {
 
   const revalidator = useRevalidator();
 
-  const loaderData = useLoaderData();
+  const navigate = useNavigate();
 
-  const products = loaderData?.products.nodes;
-  const pageInfo = loaderData?.products.pageInfo;
+  const productsData = useLoaderData();
+
+  const products = productsData?.nodes;
+  const pageInfo = productsData?.pageInfo;
 
   useEffect(() => {
     setEndCursor(pageInfo?.endCursor);
@@ -105,7 +111,7 @@ export default function Products() {
 
     setHasNextPage(!!pageInfo?.hasNextPage);
     setHasPreviousPage(!!pageInfo?.hasPreviousPage);
-  }, [loaderData]);
+  }, [productsData]);
 
   const handleButtonPrevClicked = () => {
     setSearchParams(new URLSearchParams({ startCursor: String(startCursor) }));
@@ -115,7 +121,6 @@ export default function Products() {
 
   const handleButtonNextClicked = () => {
     setSearchParams(new URLSearchParams({ endCursor: String(endCursor) }));
-
     revalidator.revalidate();
   };
 
@@ -123,49 +128,65 @@ export default function Products() {
     products?.map((product) => {
       product.id = product.id.replace("gid://shopify/Product/", "");
 
-      return Object.values(product);
+      // Get all values of a product object and store in an array
+      const dataArray = Object.values(product);
+
+      if (dataArray.length === 0) {
+        return [];
+      }
+
+      // Add button edit for every row
+      dataArray.push(
+        <Link to={`/app/products/edit?id=${product.id}`}>
+          <button className="inline-flex justify-center w-24 py-2 bg-gray-200 hover:bg-gray-300 hover:font-bold text-sm font-medium rounded-md">
+            <EditMajor
+              width={20}
+              height={20}
+              color="rgb(59, 130, 246)"
+              className="inline-block mr-2"
+            />
+            <span className="mr-1">Edit</span>
+          </button>
+        </Link>
+      );
+
+      return dataArray;
     }) || [];
 
   return (
     <Page>
-      <Outlet />
-      <ui-title-bar title="All products"></ui-title-bar>
-      <VerticalStack gap="5">
-        <Layout>
-          <Layout.Section>
-            <LegacyCard>
-              <div className="p-12">
-                <div className="border-t-2 border-gray-500">
-                  <DataTable
-                    columnContentTypes={["text", "text", "text"]}
-                    headings={["ID", "Title", "Description"]}
-                    rows={tableRows}
-                    hoverable
-                  />
-                  <div className="w-full flex justify-end gap-6 mr-0 pr-12 pt-8 border-t-2 border-gray-500">
-                    <Button
-                      disabled={!hasPreviousPage}
-                      onClick={() => {
-                        handleButtonPrevClicked();
-                      }}
-                    >
-                      Prev
-                    </Button>
-                    <Button
-                      disabled={!hasNextPage}
-                      onClick={() => {
-                        handleButtonNextClicked();
-                      }}
-                    >
-                      Next
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </LegacyCard>
-          </Layout.Section>
-        </Layout>
-      </VerticalStack>
+      <ui-title-bar title="All Products"></ui-title-bar>
+      <LegacyCard>
+        <div className="p-12">
+          <div className="border-t-2 border-gray-500">
+            <DataTable
+              columnContentTypes={["text", "text", "text"]}
+              headings={["ID", "Title", "Description", "Action"]}
+              rows={tableRows}
+              hoverable
+              verticalAlign="middle"
+            />
+            <div className="w-full flex justify-end gap-6 mr-0 pr-12 pt-8 border-t-2 border-gray-500">
+              <Button
+                disabled={!hasPreviousPage}
+                onClick={() => {
+                  handleButtonPrevClicked();
+                }}
+              >
+                Prev
+              </Button>
+              <Button
+                disabled={!hasNextPage}
+                onClick={() => {
+                  handleButtonNextClicked();
+                }}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        </div>
+      </LegacyCard>
     </Page>
   );
 }

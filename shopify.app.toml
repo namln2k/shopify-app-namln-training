@@ -2,7 +2,7 @@
 
 name = "namln-app"
 client_id = "abb5d03a35ff0067ce6ea7a53bfdfdff"
-application_url = "https://theater-bug-ff-martha.trycloudflare.com"
+application_url = "https://worldcat-marathon-urls-dust.trycloudflare.com"
 embedded = true
 
 [access_scopes]
@@ -11,9 +11,9 @@ scopes = "write_products"
 
 [auth]
 redirect_urls = [
-  "https://theater-bug-ff-martha.trycloudflare.com/auth/callback",
-  "https://theater-bug-ff-martha.trycloudflare.com/auth/shopify/callback",
-  "https://theater-bug-ff-martha.trycloudflare.com/api/auth/callback"
+  "https://worldcat-marathon-urls-dust.trycloudflare.com/auth/callback",
+  "https://worldcat-marathon-urls-dust.trycloudflare.com/auth/shopify/callback",
+  "https://worldcat-marathon-urls-dust.trycloudflare.com/api/auth/callback"
 ]
 
 [webhooks]
