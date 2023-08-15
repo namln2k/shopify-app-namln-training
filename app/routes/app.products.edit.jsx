@@ -1,16 +1,25 @@
-import { useLoaderData, useNavigate } from "@remix-run/react";
+import {
+  useActionData,
+  useLoaderData,
+  useNavigate,
+  useNavigation,
+  useRevalidator,
+  useSubmit,
+} from "@remix-run/react";
 import {
   Button,
   DataTable,
-  Form,
-  FormLayout,
   Layout,
   LegacyCard,
   Page,
+  PageActions,
   TextField,
   VerticalStack,
 } from "@shopify/polaris";
 import { useEffect, useState } from "react";
+import { NOTIFICATION_TYPES } from "~/constants";
+import { useNotificationContext } from "~/contexts/notification";
+import { createErrorMessageFromArray } from "~/utils/notification";
 import { authenticate } from "../shopify.server";
 
 export const loader = async (data) => {
@@ -20,14 +29,16 @@ export const loader = async (data) => {
   const urlObj = new URL(request.url);
   const productId = urlObj.searchParams.get("id");
 
+  // Fetch product information and its variants' data
   const response = await admin.graphql(
     `query {
       product(id: "gid://shopify/Product/${productId}") {
         id
         title
         description
-        variants(first: 100) {
+        variants(first: 250) {
           nodes {
+            id
             title
             price
           }
@@ -47,28 +58,154 @@ export const loader = async (data) => {
   }
 };
 
+export async function action({ request, params }) {
+  const { admin } = await authenticate.admin(request);
+
+  /**
+   * Get data from request
+   * Variants data needs to be parsed as it is in JSON format
+   */
+  const postData = Object.fromEntries(await request.formData());
+  const { title, id, descriptionHtml, variants: variantsJSON } = postData;
+  const variants = JSON.parse(variantsJSON);
+
+  const result = { success: true, errors: [] };
+
+  // Update product information
+  const productUpdate = await admin.graphql(
+    `mutation productUpdate($input: ProductInput!) {
+      productUpdate(input: $input) {
+        product {
+          id
+          title
+          descriptionHtml
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }`,
+    {
+      variables: {
+        input: {
+          id,
+          title,
+          descriptionHtml,
+        },
+      },
+    }
+  );
+
+  const productUpdateResponse = await productUpdate.json();
+
+  const productUpdateResult = productUpdateResponse?.data?.productUpdate;
+
+  // Append errors to array (If any)
+  if (
+    productUpdateResult.userErrors &&
+    productUpdateResult.userErrors.length > 0
+  ) {
+    result.success = false;
+    // @ts-ignore
+    result.errors = [...result.errors, ...productUpdateResult.userErrors];
+  }
+
+  // Update product variants information
+  for (let i = 0; i < variants.length; i++) {
+    const variantUpdate = await admin.graphql(
+      `mutation productVariantUpdate($input: ProductVariantInput!) {
+        productVariantUpdate(input: $input) {
+          productVariant {
+            price
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }`,
+      {
+        variables: {
+          input: { id: variants[i].id, price: variants[i].price },
+        },
+      }
+    );
+
+    const variantUpdateResponse = await variantUpdate.json();
+
+    const variantUpdateResult =
+      variantUpdateResponse?.data?.productVariantUpdate;
+
+    // Append errors to array (If any)
+    if (
+      variantUpdateResult.userErrors &&
+      variantUpdateResult.userErrors.length > 0
+    ) {
+      result.success = false;
+      // @ts-ignore
+      result.errors = [...result.errors, ...variantUpdateResult.userErrors];
+    }
+  }
+
+  return result;
+}
+
 export default function ProductsEdit() {
   const [productTitle, setProductTitle] = useState("");
-  const [productDescription, setProductDescription] = useState("");
+  const [descriptionHtml, setDescriptionHtml] = useState("");
   const [showVariants, setShowVariants] = useState(false);
-  const [hasPreviousPage, setHasPreviousPage] = useState(false);
-  const [hasNextPage, setHasNextPage] = useState(false);
-  const [startCursor, setStartCursor] = useState(null);
-  const [endCursor, setEndCursor] = useState(null);
-  const [variantPrices, setVariantPrices] = useState([]);
+  const [variants, setVariants] = useState([]);
   const [tableRows, setTableRows] = useState([]);
 
   const navigate = useNavigate();
 
+  const actionData = useActionData() || {};
+
+  const revalidator = useRevalidator();
+
+  const nav = useNavigation();
+
+  const submit = useSubmit();
+
+  const [notification, setNotification] = useNotificationContext();
+
+  const isSaving = nav.state === "submitting" && nav.formMethod === "POST";
+
   const productData = useLoaderData();
+
   const productVariants = productData.variants?.nodes;
-  const pageInfo = productData.variants?.pageInfo;
 
   useEffect(() => {
+    // Fill product data into page
     setProductTitle(productData.title);
-    setProductDescription(productData.description);
-    setVariantPrices(productVariants.map((variant) => variant.price));
+    setDescriptionHtml(productData.description);
+    setVariants(productVariants);
   }, [productData]);
+
+  useEffect(() => {
+    console.log(actionData);
+    // Process result from this route's action and fire notification messages
+    const { errors, success } = actionData;
+
+    if (errors?.length > 0) {
+      // @ts-ignore
+      setNotification({
+        type: NOTIFICATION_TYPES.ERROR,
+        message: createErrorMessageFromArray(
+          errors.map((error) => error.message)
+        ),
+      });
+    }
+
+    if (success) {
+      // @ts-ignore
+      setNotification({
+        type: NOTIFICATION_TYPES.SUCCESS,
+        message: "Your changes have been saved!",
+      });
+    }
+  }, [actionData]);
 
   useEffect(() => {
     setTableRows(
@@ -83,21 +220,41 @@ export default function ProductsEdit() {
         <TextField
           label=""
           type="number"
-          value={variantPrices[index]}
+          // @ts-ignore
+          value={variants[index]?.price}
           onChange={(newValue) => {
             // @ts-ignore
-            setVariantPrices((prev) =>
-              prev?.map((item, i) => (i === index ? newValue : item))
+            setVariants((prev) =>
+              prev?.map((item, i) =>
+                i === index
+                  ? // @ts-ignore
+                    { ...item, price: newValue, isEdited: true }
+                  : item
+              )
             );
           }}
           autoComplete="off"
         />,
       ])
     );
-  }, [variantPrices]);
+  }, [variants]);
 
-  const handleFormSubmit = (event) => {
-    event.preventDefault();
+  const handleSave = () => {
+    const data = {
+      id: productData.id || "",
+      title: productTitle,
+      descriptionHtml: descriptionHtml,
+      variants: JSON.stringify(
+        variants
+          // @ts-ignore
+          // Only submit variants that has been edited
+          .filter((variant) => variant.isEdited)
+          // @ts-ignore
+          .map((variant) => ({ id: variant.id, price: variant.price }))
+      ),
+    };
+
+    submit(data, { method: "post" });
   };
 
   return (
@@ -110,7 +267,7 @@ export default function ProductsEdit() {
             navigate("/app/products/all");
           }}
         >
-          All Products &nbsp; &gt;
+          All Products
         </button>
         <button
           onClick={() => {
@@ -120,39 +277,36 @@ export default function ProductsEdit() {
           Back
         </button>
       </ui-title-bar>
-      <VerticalStack gap="5">
-        <Layout>
-          <Layout.Section>
-            <LegacyCard>
-              <div className="p-12">
-                <Form onSubmit={handleFormSubmit}>
-                  <FormLayout>
-                    <TextField
-                      value={productTitle}
-                      onChange={(newValue) => setProductTitle(newValue)}
-                      label="Product Title"
-                      type="text"
-                      autoComplete="none"
-                    />
-                    <TextField
-                      value={productDescription}
-                      onChange={(newValue) => setProductDescription(newValue)}
-                      label="Product Description"
-                      type="text"
-                      autoComplete="none"
-                    />
-                  </FormLayout>
-                </Form>
-                <div className="py-4 mt-4">
-                  <button
+      <LegacyCard>
+        <div className="p-12">
+          <Layout>
+            <Layout.Section>
+              <VerticalStack gap="5">
+                <TextField
+                  id="title"
+                  value={productTitle}
+                  onChange={(newValue) => setProductTitle(newValue)}
+                  label="Product Title"
+                  type="text"
+                  autoComplete="none"
+                />
+                <TextField
+                  id="description"
+                  value={descriptionHtml}
+                  onChange={(newValue) => setDescriptionHtml(newValue)}
+                  label="Product Description"
+                  type="text"
+                  autoComplete="none"
+                />
+                <div className="py-4">
+                  <Button
                     onClick={() => {
                       setShowVariants((prev) => !prev);
                     }}
-                    className="bg-gray-200 hover:bg-gray-300 hover:font-bold py-3 w-40 rounded-md"
                   >
                     {showVariants ? "Hide Variants" : "Show Variants"}
-                  </button>
-                  <div className={`${!showVariants && "opacity-0"}`}>
+                  </Button>
+                  <div className={`${!showVariants && "hidden"}`}>
                     <DataTable
                       columnContentTypes={["text", "text"]}
                       headings={["Variant", "Price"]}
@@ -161,11 +315,29 @@ export default function ProductsEdit() {
                     />
                   </div>
                 </div>
-              </div>
-            </LegacyCard>
-          </Layout.Section>
-        </Layout>
-      </VerticalStack>
+              </VerticalStack>
+            </Layout.Section>
+            <Layout.Section>
+              <PageActions
+                secondaryActions={[
+                  {
+                    content: "Reset all",
+                    disabled: !productData.id || isSaving,
+                    outline: true,
+                    onAction: revalidator.revalidate,
+                  },
+                ]}
+                primaryAction={{
+                  content: "Save",
+                  loading: isSaving,
+                  disabled: !productData.id || isSaving,
+                  onAction: handleSave,
+                }}
+              />
+            </Layout.Section>
+          </Layout>
+        </div>
+      </LegacyCard>
     </Page>
   );
 }

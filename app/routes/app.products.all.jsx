@@ -1,21 +1,13 @@
 import {
   Link,
   useLoaderData,
-  useNavigate,
   useRevalidator,
   useSearchParams,
 } from "@remix-run/react";
-import {
-  Button,
-  DataTable,
-  Layout,
-  LegacyCard,
-  Page,
-  VerticalStack,
-} from "@shopify/polaris";
-import { useEffect, useState } from "react";
-import { authenticate } from "../shopify.server";
+import { Button, DataTable, LegacyCard, Page } from "@shopify/polaris";
 import { EditMajor } from "@shopify/polaris-icons";
+import { useCallback, useEffect, useState } from "react";
+import { authenticate } from "../shopify.server";
 
 export const loader = async (data) => {
   const { request } = data;
@@ -98,8 +90,6 @@ export default function ProductsAll() {
 
   const revalidator = useRevalidator();
 
-  const navigate = useNavigate();
-
   const productsData = useLoaderData();
 
   const products = productsData?.nodes;
@@ -121,6 +111,7 @@ export default function ProductsAll() {
 
   const handleButtonNextClicked = () => {
     setSearchParams(new URLSearchParams({ endCursor: String(endCursor) }));
+
     revalidator.revalidate();
   };
 

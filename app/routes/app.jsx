@@ -6,6 +6,8 @@ import { boundary } from "@shopify/shopify-app-remix";
 import React from "react";
 
 import { authenticate } from "../shopify.server";
+import { NotificationProvider } from "~/contexts/notification";
+import Notification from "~/components/Notification";
 
 export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 
@@ -37,7 +39,10 @@ export default function App() {
         i18n={polarisTranslations}
         linkComponent={RemixPolarisLink}
       >
-        <Outlet />
+        <NotificationProvider>
+          <Notification />
+          <Outlet />
+        </NotificationProvider>
       </PolarisAppProvider>
     </>
   );
