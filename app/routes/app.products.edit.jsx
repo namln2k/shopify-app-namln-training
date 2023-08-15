@@ -36,6 +36,15 @@ export const loader = async (data) => {
         id
         title
         description
+        extraDescription: metafield(
+          namespace: "custom"
+          key: "product_extra_description"
+        ) {
+          id
+          namespace
+          key
+          value
+        }
         variants(first: 250) {
           nodes {
             id
@@ -63,11 +72,18 @@ export async function action({ request, params }) {
 
   /**
    * Get data from request
-   * Variants data needs to be parsed as it is in JSON format
+   * variants and extraDescription needs to be parsed as it is in JSON format
    */
   const postData = Object.fromEntries(await request.formData());
-  const { title, id, descriptionHtml, variants: variantsJSON } = postData;
+  const {
+    title,
+    id,
+    descriptionHtml,
+    extraDescription: extraDescriptionJSON,
+    variants: variantsJSON,
+  } = postData;
   const variants = JSON.parse(variantsJSON);
+  const extraDescription = JSON.parse(extraDescriptionJSON);
 
   const result = { success: true, errors: [] };
 
@@ -79,6 +95,15 @@ export async function action({ request, params }) {
           id
           title
           descriptionHtml
+          extraDescription: metafield(
+            namespace: "custom"
+            key: "product_extra_description"
+          ) {
+            id
+            namespace
+            key
+            value
+          }
         }
         userErrors {
           field
@@ -92,6 +117,10 @@ export async function action({ request, params }) {
           id,
           title,
           descriptionHtml,
+          metafields: {
+            id: extraDescription.id,
+            value: extraDescription.value,
+          },
         },
       },
     }
@@ -154,6 +183,7 @@ export async function action({ request, params }) {
 export default function ProductsEdit() {
   const [productTitle, setProductTitle] = useState("");
   const [descriptionHtml, setDescriptionHtml] = useState("");
+  const [extraDescription, setExtraDescription] = useState();
   const [showVariants, setShowVariants] = useState(false);
   const [variants, setVariants] = useState([]);
   const [tableRows, setTableRows] = useState([]);
@@ -180,11 +210,17 @@ export default function ProductsEdit() {
     // Fill product data into page
     setProductTitle(productData.title);
     setDescriptionHtml(productData.description);
+    if (productData.extraDescription) {
+      setExtraDescription({
+        // @ts-ignore
+        id: productData.extraDescription.id,
+        value: productData.extraDescription.value,
+      });
+    }
     setVariants(productVariants);
   }, [productData]);
 
   useEffect(() => {
-    console.log(actionData);
     // Process result from this route's action and fire notification messages
     const { errors, success } = actionData;
 
@@ -243,7 +279,8 @@ export default function ProductsEdit() {
     const data = {
       id: productData.id || "",
       title: productTitle,
-      descriptionHtml: descriptionHtml,
+      descriptionHtml,
+      extraDescription: JSON.stringify(extraDescription),
       variants: JSON.stringify(
         variants
           // @ts-ignore
@@ -254,6 +291,7 @@ export default function ProductsEdit() {
       ),
     };
 
+    // @ts-ignore
     submit(data, { method: "post" });
   };
 
@@ -288,7 +326,7 @@ export default function ProductsEdit() {
                   onChange={(newValue) => setProductTitle(newValue)}
                   label="Product Title"
                   type="text"
-                  autoComplete="none"
+                  autoComplete="off"
                 />
                 <TextField
                   id="description"
@@ -296,8 +334,25 @@ export default function ProductsEdit() {
                   onChange={(newValue) => setDescriptionHtml(newValue)}
                   label="Product Description"
                   type="text"
-                  autoComplete="none"
+                  autoComplete="off"
                 />
+                {extraDescription && (
+                  <TextField
+                    id="extra-description"
+                    // @ts-ignore
+                    value={extraDescription.value}
+                    onChange={(newValue) =>
+                      setExtraDescription((prev) => ({
+                        // @ts-ignore
+                        ...prev,
+                        value: newValue,
+                      }))
+                    }
+                    label="Product Extra Description"
+                    type="text"
+                    autoComplete="off"
+                  />
+                )}
                 <div className="py-4">
                   <Button
                     onClick={() => {
