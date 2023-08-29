@@ -2,7 +2,7 @@
 
 name = "namln-app"
 client_id = "abb5d03a35ff0067ce6ea7a53bfdfdff"
-application_url = "https://device-story-prefix-harm.trycloudflare.com"
+application_url = "https://plumbing-window-grace-lighter.trycloudflare.com"
 embedded = true
 
 [access_scopes]
@@ -11,9 +11,9 @@ scopes = "write_products"
 
 [auth]
 redirect_urls = [
-  "https://device-story-prefix-harm.trycloudflare.com/auth/callback",
-  "https://device-story-prefix-harm.trycloudflare.com/auth/shopify/callback",
-  "https://device-story-prefix-harm.trycloudflare.com/api/auth/callback"
+  "https://plumbing-window-grace-lighter.trycloudflare.com/auth/callback",
+  "https://plumbing-window-grace-lighter.trycloudflare.com/auth/shopify/callback",
+  "https://plumbing-window-grace-lighter.trycloudflare.com/api/auth/callback"
 ]
 
 [webhooks]

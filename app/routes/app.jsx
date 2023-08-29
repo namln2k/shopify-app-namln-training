@@ -1,11 +1,13 @@
-import React from "react";
 import { json } from "@remix-run/node";
 import { Link, Outlet, useLoaderData, useRouteError } from "@remix-run/react";
 import { AppProvider as PolarisAppProvider } from "@shopify/polaris";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css";
 import { boundary } from "@shopify/shopify-app-remix";
+import React from "react";
 
 import { authenticate } from "../shopify.server";
+import { NotificationProvider } from "~/contexts/notification";
+import Notification from "~/components/Notification";
 
 export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 
@@ -31,13 +33,16 @@ export default function App() {
         <Link to="/app" rel="home">
           Home
         </Link>
-        <Link to="/app/additional">Additional page</Link>
+        <Link to="/app/products/all">Manage products</Link>
       </ui-nav-menu>
       <PolarisAppProvider
         i18n={polarisTranslations}
         linkComponent={RemixPolarisLink}
       >
-        <Outlet />
+        <NotificationProvider>
+          <Notification />
+          <Outlet />
+        </NotificationProvider>
       </PolarisAppProvider>
     </>
   );
