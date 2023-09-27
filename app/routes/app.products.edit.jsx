@@ -87,44 +87,88 @@ export async function action({ request, params }) {
 
   const result = { success: true, errors: [] };
 
-  // Update product information
-  const productUpdate = await admin.graphql(
-    `mutation productUpdate($input: ProductInput!) {
-      productUpdate(input: $input) {
-        product {
-          id
-          title
-          descriptionHtml
-          extraDescription: metafield(
-            namespace: "custom"
-            key: "product_extra_description"
-          ) {
+  let productUpdate = null;
+  if (extraDescription.id) {
+    productUpdate = await admin.graphql(
+      `mutation productUpdate($input: ProductInput!) {
+        productUpdate(input: $input) {
+          product {
             id
-            namespace
-            key
-            value
+            title
+            descriptionHtml
+            extraDescription: metafield(
+              namespace: "custom"
+              key: "product_extra_description"
+            ) {
+              id
+              namespace
+              key
+              value
+            }
+          }
+          userErrors {
+            field
+            message
           }
         }
-        userErrors {
-          field
-          message
-        }
-      }
-    }`,
-    {
-      variables: {
-        input: {
-          id,
-          title,
-          descriptionHtml,
-          metafields: {
-            id: extraDescription.id,
-            value: extraDescription.value,
+      }`,
+      {
+        variables: {
+          input: {
+            id,
+            title,
+            descriptionHtml,
+            metafields: {
+              id: extraDescription.id,
+              value: extraDescription.value || '',
+            },
           },
         },
-      },
-    }
-  );
+      }
+    );
+  } else {
+    productUpdate = await admin.graphql(
+      `mutation productUpdate($input: ProductInput!) {
+        productUpdate(input: $input) {
+          product {
+            id
+            title
+            descriptionHtml
+            extraDescription: metafield(
+              namespace: "custom"
+              key: "product_extra_description"
+            ) {
+              id
+              namespace
+              key
+              value
+            }
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }`,
+      {
+        variables: {
+          input: {
+            id,
+            title,
+            descriptionHtml,
+            metafields: {
+              namespace: extraDescription.namespace,
+              key: extraDescription.key,
+              value: extraDescription.value || '',
+            },
+          },
+        },
+      }
+    );
+  }
+
+  // Update product information
+  
 
   const productUpdateResponse = await productUpdate.json();
 
@@ -215,6 +259,15 @@ export default function ProductsEdit() {
         // @ts-ignore
         id: productData.extraDescription.id,
         value: productData.extraDescription.value,
+        namespace: productData.extraDescription.namespace,
+        key: productData.extraDescription.key,
+      });
+    } else {
+      setExtraDescription({
+        // @ts-ignore
+        value: '',
+        namespace: 'custom',
+        key: 'product_extra_description',
       });
     }
     setVariants(productVariants);
@@ -336,23 +389,21 @@ export default function ProductsEdit() {
                   type="text"
                   autoComplete="off"
                 />
-                {extraDescription && (
-                  <TextField
-                    id="extra-description"
-                    // @ts-ignore
-                    value={extraDescription.value}
-                    onChange={(newValue) =>
-                      setExtraDescription((prev) => ({
-                        // @ts-ignore
-                        ...prev,
-                        value: newValue,
-                      }))
-                    }
-                    label="Product Extra Description"
-                    type="text"
-                    autoComplete="off"
-                  />
-                )}
+                <TextField
+                  id="extra-description"
+                  // @ts-ignore
+                  value={extraDescription?.value || ''}
+                  onChange={(newValue) =>
+                    setExtraDescription((prev) => ({
+                      // @ts-ignore
+                      ...prev,
+                      value: newValue,
+                    }))
+                  }
+                  label="Product Extra Description"
+                  type="text"
+                  autoComplete="off"
+                />
                 <div className="py-4">
                   <Button
                     onClick={() => {
