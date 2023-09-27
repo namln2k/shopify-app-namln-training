@@ -330,29 +330,27 @@ export default function ProductsEdit() {
                 />
                 <TextField
                   id="description"
-                  value={descriptionHtml}
+                  value={descriptionHtml || ''}
                   onChange={(newValue) => setDescriptionHtml(newValue)}
                   label="Product Description"
                   type="text"
                   autoComplete="off"
                 />
-                {extraDescription && (
-                  <TextField
-                    id="extra-description"
-                    // @ts-ignore
-                    value={extraDescription.value}
-                    onChange={(newValue) =>
-                      setExtraDescription((prev) => ({
-                        // @ts-ignore
-                        ...prev,
-                        value: newValue,
-                      }))
-                    }
-                    label="Product Extra Description"
-                    type="text"
-                    autoComplete="off"
-                  />
-                )}
+                <TextField
+                  id="extra-description"
+                  // @ts-ignore
+                  value={extraDescription?.value || ''}
+                  onChange={(newValue) =>
+                    setExtraDescription((prev) => ({
+                      // @ts-ignore
+                      ...prev,
+                      value: newValue,
+                    }))
+                  }
+                  label="Product Extra Description"
+                  type="text"
+                  autoComplete="off"
+                />
                 <div className="py-4">
                   <Button
                     onClick={() => {
